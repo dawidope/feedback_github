@@ -1,11 +1,11 @@
 name: feedback_github
-description: A Flutter package that enables users to submit feedback as GitHub issues, storing images in Firebase Storage.
+description: A Flutter package that enables users to submit feedback as GitHub issues, storing images in GitHub repository.
 version: 1.2.3
 repository: https://github.com/tempo-riz/feedback_github
 
 topics:
   - github-issue
-  - firebase-storage
+  - github-storage
   - feedback
   - issue-tracker
 
@@ -18,12 +18,9 @@ dependencies:
     sdk: flutter
   feedback: ^3.0.0
   github: ^9.24.0
-  firebase_storage: ^13.0.1
   uuid: ^4.4.0
   device_info_plus: ^11.2.1
-  package_info_plus: ^8.0.0
-  mime: ^2.0.0
-  firebase_core: ^4.1.0
+  package_info_plus: ^9.0.0
 
 dev_dependencies:
   flutter_test:

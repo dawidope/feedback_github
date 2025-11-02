@@ -1,21 +1,12 @@
 # feedback_github
 
-![Pub Version](https://img.shields.io/pub/v/feedback_github)
-![Pub Likes](https://img.shields.io/pub/likes/feedback_github)
-![Pub Monthly Downloads](https://img.shields.io/pub/dm/feedback_github)
-
-
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/M4M71BK1YJ)
- 
-A Flutter package that enables users to submit feedback as GitHub issues, storing images in Firebase Storage.
+A Flutter package that enables users to submit feedback as GitHub issues, storing images directly in the GitHub repository.
 
 ## Features
 - Allows the user to provide interactive feedback directly in the app, by annotating a screenshot of the current page, as well as by adding text.
-- Send this feeback as github issues, storing images in firebase storage
+- Send this feedback as GitHub issues, storing screenshot images as files directly in the repository
 - Optionally add debug informations (package and device info)
 
-### Demo
-you can find a full flutter demo [here](https://github.com/tempo-riz/feedback_github/tree/main/example/demo)
 
 <!--
 commands :
@@ -31,9 +22,8 @@ flutter pub publish --dry-run
 
 ## Getting started
 
-1. Setup firebase & firebase storage : https://firebase.google.com/docs/storage/flutter/start
-2. create a github token (see below)
-3. Wrap you app with BetterFeedbackWidget : 
+1. Create a GitHub token (see below)
+2. Wrap you app with BetterFeedbackWidget : 
 
 ```dart
 void main() {
@@ -45,7 +35,7 @@ void main() {
 }
 ```
 
-4. Provide a way to show the feedback and that's it !
+3. Provide a way to show the feedback and that's it !
 ```dart
 // you can check how it will look here https://github.com/tempo-riz/dummy-repo/issues/2
 BetterFeedback.of(context).showAndUploadToGitHub(
@@ -57,7 +47,6 @@ BetterFeedback.of(context).showAndUploadToGitHub(
     packageInfo: true, // show package Info
     deviceInfo: true, // show device Info
     extraData: "Some extra data you want to add in the issue",
-    // imageRef: // another firebase storage ref to store the image
     onSucces: (issue) => print("succes !"),
     onError: (error) => print("failed :/ $error"),
 )
@@ -75,8 +64,26 @@ You can also call `BetterFeedback.of(context).hide()` to manually dimiss the pan
 - generate new token with : 
     1. name it and add an optional expiration time
     2. Repository access : Only select repositories, select your repo
-    3. Add permissions : Issues (read and write)
+    3. Add permissions : 
+       - **Issues** (read and write) - to create feedback issues
+       - **Contents** (read and write) - to upload screenshot images to the repository
     4. Generate your token and save it securely (don't commit it in a repo)
+
+## 🔐 Security considerations
+
+⚠️ **Important security notes:**
+
+- **Token security**: Never commit your GitHub token to version control. Always use environment variables or secure storage.
+- **Repository access**: The token has **Contents write access**, which means it can create, modify, and delete files in your repository. 
+- **Image storage**: Screenshots are stored as files in an `images/` folder in your repository, making them publicly accessible if your repository is public.
+- **Token scope**: Grant the minimum necessary permissions. Only give access to specific repositories that need feedback functionality.
+- **Token rotation**: Regularly rotate your tokens and set reasonable expiration dates.
+- **Monitoring**: Monitor your repository for unexpected file uploads in the `images/` folder.
+
+**Potential risks:**
+- If the token is compromised, attackers could upload arbitrary files to your repository
+- In public repositories, all feedback screenshots become publicly viewable
+- High feedback volume could consume significant repository storage space
 
 ## 🎨 Configuration & customization
 
@@ -151,14 +158,16 @@ void main() {
 }
 ```
 
-### Why firebase storage ?
+### Why store images in the repository ?
 
-GitHub's API doesn't allow uploading files in issues (only via the web interface)
+GitHub's API doesn't allow uploading files directly to issues (only via the web interface), so images are stored as files in the repository and linked in the issue description. This eliminates the need for external storage services like Firebase Storage.
 
 
 ### Credits 🙏
 
 This package is based on the original work of [Jonas Uekötter](https://github.com/ueman). Check out the original repository [here](https://github.com/ueman/feedback/tree/master).
+
+The GitHub integration functionality was originally developed in [tempo-riz/dummy-repo](https://github.com/tempo-riz/dummy-repo) and has been extracted into this standalone package.
 
 ### Issues, questions and contributing
 

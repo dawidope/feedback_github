@@ -1,19 +1,17 @@
-export 'package:feedback/feedback.dart';
-export 'package:github/github.dart';
-// export 'package:firebase_core/firebase_core.dart';
-// export 'package:firebase_storage/firebase_storage.dart';
-
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
+
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:feedback/feedback.dart';
 import 'package:flutter/foundation.dart';
 import 'package:github/github.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-import 'package:mime/mime.dart';
-import 'package:uuid/uuid.dart';
-import 'package:device_info_plus/device_info_plus.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:uuid/uuid.dart';
+
+export 'package:feedback/feedback.dart';
+export 'package:github/github.dart';
 
 /// extension to call [uploadToGitHub]
 extension FeedbackGitHub on FeedbackController {
@@ -26,7 +24,6 @@ extension FeedbackGitHub on FeedbackController {
     bool deviceInfo = true,
     bool allowEmptyText = true,
     String? extraData,
-    Reference? imageRef,
     bool allowProdEmulatorFeedback = true,
     void Function(Issue)? onSucces,
     void Function(Object error)? onError,
@@ -52,7 +49,6 @@ extension FeedbackGitHub on FeedbackController {
           packageInfo: packageInfo,
           deviceInfo: deviceInfo,
           extraData: extraData,
-          imageRef: imageRef,
           allowProdEmulatorFeedback: allowProdEmulatorFeedback,
         );
         onSucces?.call(issue);
@@ -67,7 +63,7 @@ extension FeedbackGitHub on FeedbackController {
   }
 }
 
-/// Store image in firebase storage and create GitHub issue with feedback
+/// Store image in GitHub repository and create GitHub issue with feedback
 ///
 /// [repoUrl] is the URL of the GitHub repository.
 ///
@@ -87,8 +83,6 @@ extension FeedbackGitHub on FeedbackController {
 ///
 /// [extraData] is any additional data to be included.
 ///
-/// [imageRef] optional reference if you want to store the image somewhere else than default /user-feedback-images/filename
-///
 /// [allowProdEmulatorFeedback] if true, feedback from emulator in production will be allowed (could be google play bots)
 ///
 /// [imageDisplayWidth] is the width of the image displayed in the issue. Default is `300`.
@@ -103,7 +97,6 @@ Future<Issue> uploadToGitHub({
   bool packageInfo = true,
   bool deviceInfo = true,
   String? extraData,
-  Reference? imageRef,
   bool allowProdEmulatorFeedback = true,
   int imageDisplayWidth = 300,
 }) async {
@@ -112,8 +105,9 @@ Future<Issue> uploadToGitHub({
           (screenshot != null && filename != null),
       "Both screenshot and filename should be either provided or neither should be provided");
 
+  await Future.delayed(const Duration(milliseconds: 500));
   final String? imageUrl = screenshot != null
-      ? await uploadImageToStorage(screenshot, filename!, imageRef)
+      ? await uploadImageToStorage(screenshot, filename!, repoUrl, gitHubToken)
       : null;
 
   final String image = imageUrl != null
@@ -165,26 +159,37 @@ Future<Issue> uploadToGitHub({
       labels: labels);
 }
 
-/// Upload image to firebase storage and return the download url
+/// Upload image to GitHub repository and return the download url
 Future<String?> uploadImageToStorage(
   Uint8List imageData,
   String filename,
-  Reference? imageRef,
+  String repoUrl,
+  String gitHubToken,
 ) async {
   try {
-    // rename the file to avoid conflicts in storage
+    final github = GitHub(auth: Authentication.withToken(gitHubToken));
+    final slug = _parseRepositorySlug(repoUrl);
+
+    // Generate unique filename to avoid conflicts
     final ext = filename.split(".").last;
     final newFilename = '${const Uuid().v4()}.$ext';
+    final imagePath = 'images/$newFilename';
 
-    final imgRef = imageRef ??
-        FirebaseStorage.instance
-            .ref()
-            .child("user-feedback-images/$newFilename");
+    final imageBase64 = base64Encode(imageData);
 
-    await imgRef.putData(
-        imageData, SettableMetadata(contentType: lookupMimeType(filename)));
+    // Create file in repository
+    await github.repositories.createFile(
+      slug,
+      CreateFile(
+        message: 'upload feedback screenshot',
+        content: imageBase64,
+        path: imagePath,
+      ),
+    );
 
-    return await imgRef.getDownloadURL();
+    // Return URL in format: https://github.com/owner/repo/blob/main/images/filename.png?raw=true
+    // This format works without authentication and returns the raw image
+    return 'https://github.com/${slug.owner}/${slug.name}/blob/main/$imagePath?raw=true';
   } catch (e) {
     debugPrint(e.toString());
     return null;
@@ -200,14 +205,7 @@ Future<Issue> createGithubIssue({
   List<String> labels = const ['feedback'],
 }) async {
   final github = GitHub(auth: Authentication.withToken(gitHubToken));
-  // https://github.com/tempo-riz/feedback_github or https://github.com/tempo-riz/feedback_github.git -> temporiz / feedback_github
-  final split = repoUrl.split("/");
-  final owner = split[split.length - 2];
-  final name = split[split.length - 1]
-      .split(".")
-      .first; //remove .git in case there is any
-
-  RepositorySlug slug = RepositorySlug(owner, name);
+  final slug = _parseRepositorySlug(repoUrl);
 
   IssueRequest issue = IssueRequest(
     title: title,
@@ -215,6 +213,18 @@ Future<Issue> createGithubIssue({
     labels: labels,
   );
   return github.issues.create(slug, issue);
+}
+
+/// Parse repository slug from GitHub URL
+/// Supports URLs like:
+/// - https://github.com/owner/repo
+/// - https://github.com/owner/repo.git
+RepositorySlug _parseRepositorySlug(String repoUrl) {
+  final split = repoUrl.split("/");
+  final owner = split[split.length - 2];
+  final name =
+      split[split.length - 1].split(".").first; // remove .git if present
+  return RepositorySlug(owner, name);
 }
 
 String _formatKeys(Map<String, dynamic> map, List<String> keys) {
